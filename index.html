@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agenda Pessoal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --bg: #12151c;
+    --surface: #1b202b;
+    --surface-2: #232a37;
+    --border: #2a3140;
+    --text: #e9e7e0;
+    --text-muted: #8a92a6;
+    --accent: #e8a33d;
+    --accent-dim: #4a3a20;
+    --ok: #5fb88a;
+    --ok-dim: #223429;
+    --warn: #e2685f;
+    --warn-dim: #3a2422;
+    --info: #6ea8e0;
+    --info-dim: #22303f;
+    --radius: 10px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Inter',system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{
+    max-width:1100px;
+    margin:0 auto;
+    padding:28px 20px 80px;
+  }
+  header.top{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    margin-bottom:28px;
+    gap:16px;
+    flex-wrap:wrap;
+  }
+  .brand{
+    font-family:'Fraunces',serif;
+    font-size:28px;
+    font-weight:600;
+    letter-spacing:-0.01em;
+  }
+  .brand span{color:var(--accent);}
+  .top-actions{display:flex;gap:8px;}
+  .icon-btn{
+    background:var(--surface);
+    border:1px solid var(--border);
+    color:var(--text-muted);
+    border-radius:8px;
+    padding:8px 12px;
+    font-size:13px;
+    cursor:pointer;
+    font-family:'Inter',sans-serif;
+    transition:border-color .15s, color .15s;
+  }
+  .icon-btn:hover{border-color:var(--accent);color:var(--text);}
+
+  .grid{
+    display:grid;
+    grid-template-columns: 1.5fr 1fr;
+    gap:20px;
+  }
+  @media(max-width:820px){
+    .grid{grid-template-columns:1fr;}
+  }
+
+  .panel{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:20px;
+  }
+
+  /* Calendário */
+  .cal-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:18px;
+  }
+  .cal-month{
+    font-family:'Fraunces',serif;
+    font-size:22px;
+    font-weight:500;
+    text-transform:capitalize;
+  }
+  .cal-nav{display:flex;gap:6px;}
+  .nav-btn{
+    width:32px;height:32px;
+    border-radius:8px;
+    border:1px solid var(--border);
+    background:var(--surface-2);
+    color:var(--text);
+    cursor:pointer;
+    font-size:15px;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .nav-btn:hover{border-color:var(--accent);}
+
+  .weekdays{
+    display:grid;
+    grid-template-columns:repeat(7,1fr);
+    margin-bottom:6px;
+  }
+  .weekdays div{
+    text-align:center;
+    font-size:11px;
+    color:var(--text-muted);
+    font-family:'JetBrains Mono',monospace;
+    letter-spacing:.05em;
+    padding-bottom:4px;
+  }
+  .days{
+    display:grid;
+    grid-template-columns:repeat(7,1fr);
+    grid-auto-rows:minmax(56px,auto);
+    gap:4px;
+  }
+  .day{
+    position:relative;
+    border-radius:8px;
+    padding:6px 6px 8px;
+    cursor:pointer;
+    border:1px solid transparent;
+    transition:background .12s, border-color .12s;
+    display:flex;
+    flex-direction:column;
+    justify-content:space-between;
+    min-height:56px;
+  }
+  .day:hover{background:var(--surface-2);border-color:var(--border);}
+  .day.out{opacity:.28;}
+  .day.selected{background:var(--surface-2);border-color:var(--accent);}
+  .day-num{
+    font-family:'JetBrains Mono',monospace;
+    font-size:13px;
+    color:var(--text-muted);
+  }
+  .day.today .day-num{
+    color:var(--bg);
+    background:var(--accent);
+    width:22px;height:22px;
+    border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    font-weight:600;
+  }
+  .day-dots{display:flex;gap:3px;flex-wrap:wrap;}
+  .dot{width:5px;height:5px;border-radius:50%;}
+  .dot.compromisso{background:var(--info);}
+  .dot.lembrete{background:var(--warn);}
+  .dot.tarefa{background:var(--ok);}
+
+  /* Painel do dia selecionado */
+  .day-panel-title{
+    font-family:'Fraunces',serif;
+    font-size:17px;
+    margin:0 0 14px;
+    text-transform:capitalize;
+  }
+  .add-form{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    margin-bottom:16px;
+    padding-bottom:16px;
+    border-bottom:1px solid var(--border);
+  }
+  .add-form input[type=text], .add-form input[type=time], .add-form textarea, .add-form select{
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    color:var(--text);
+    border-radius:7px;
+    padding:8px 10px;
+    font-family:'Inter',sans-serif;
+    font-size:13.5px;
+    width:100%;
+  }
+  .add-form textarea{resize:vertical;min-height:44px;}
+  .row2{display:flex;gap:8px;}
+  .row2 > *{flex:1;}
+  .type-pick{display:flex;gap:6px;}
+  .type-pick button{
+    flex:1;
+    padding:7px 4px;
+    border-radius:7px;
+    border:1px solid var(--border);
+    background:var(--surface-2);
+    color:var(--text-muted);
+    font-size:12px;
+    cursor:pointer;
+    font-family:'Inter',sans-serif;
+  }
+  .type-pick button.active[data-type="compromisso"]{border-color:var(--info);color:var(--info);background:var(--info-dim);}
+  .type-pick button.active[data-type="lembrete"]{border-color:var(--warn);color:var(--warn);background:var(--warn-dim);}
+  .type-pick button.active[data-type="tarefa"]{border-color:var(--ok);color:var(--ok);background:var(--ok-dim);}
+  .btn-primary{
+    background:var(--accent);
+    color:#1a1305;
+    border:none;
+    border-radius:7px;
+    padding:9px 12px;
+    font-weight:600;
+    font-size:13.5px;
+    cursor:pointer;
+  }
+  .btn-primary:hover{filter:brightness(1.08);}
+
+  .item-list{display:flex;flex-direction:column;gap:8px;}
+  .item{
+    display:flex;
+    gap:10px;
+    align-items:flex-start;
+    padding:9px 10px;
+    background:var(--surface-2);
+    border-radius:8px;
+    border-left:3px solid var(--info);
+  }
+  .item.lembrete{border-left-color:var(--warn);}
+  .item.tarefa{border-left-color:var(--ok);}
+  .item.done{opacity:.45;}
+  .item.done .item-title{text-decoration:line-through;}
+  .item-check{
+    margin-top:2px;
+    width:16px;height:16px;
+    border-radius:50%;
+    border:1.5px solid var(--text-muted);
+    cursor:pointer;
+    flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;
+    font-size:10px;
+  }
+  .item.done .item-check{background:var(--ok);border-color:var(--ok);color:var(--bg);}
+  .item-body{flex:1;min-width:0;}
+  .item-title{font-size:13.5px;font-weight:500;}
+  .item-time{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-muted);}
+  .item-desc{font-size:12.5px;color:var(--text-muted);margin-top:2px;}
+  .item-del{
+    background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:15px;padding:2px 4px;
+  }
+  .item-del:hover{color:var(--warn);}
+  .empty{color:var(--text-muted);font-size:13px;padding:8px 0;}
+
+  /* Próximos */
+  .upcoming-list{display:flex;flex-direction:column;gap:8px;max-height:640px;overflow-y:auto;}
+  .up-item{
+    display:flex;
+    gap:12px;
+    align-items:center;
+    padding:10px 10px;
+    background:var(--surface-2);
+    border-radius:8px;
+    border-left:3px solid var(--info);
+    cursor:pointer;
+  }
+  .up-item.lembrete{border-left-color:var(--warn);}
+  .up-item.tarefa{border-left-color:var(--ok);}
+  .up-date{
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    color:var(--accent);
+    text-align:center;
+    width:38px;
+    flex-shrink:0;
+    line-height:1.2;
+  }
+  .up-date .d{font-size:16px;font-weight:600;display:block;}
+  .up-body{flex:1;min-width:0;}
+  .up-title{font-size:13.5px;font-weight:500;}
+  .up-meta{font-size:11.5px;color:var(--text-muted);}
+
+  footer.hint{
+    text-align:center;
+    color:var(--text-muted);
+    font-size:11.5px;
+    margin-top:30px;
+    font-family:'JetBrains Mono',monospace;
+  }
+
+  #toast{
+    position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+    background:var(--surface-2);border:1px solid var(--border);
+    padding:10px 18px;border-radius:8px;font-size:13px;
+    opacity:0;pointer-events:none;transition:opacity .2s, transform .2s;
+  }
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(-6px);}
+
+  ::-webkit-scrollbar{width:8px;}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
+
+  /* Símbolo da marca */
+  .brand-mark{
+    display:inline-block;
+    vertical-align:middle;
+    margin-right:9px;
+  }
+  .brand{display:flex;align-items:center;}
+
+  /* Modal de exclusão de recorrência */
+  #deleteModal{
+    display:none;
+    position:fixed;
+    inset:0;
+    background:rgba(6,8,12,.65);
+    align-items:center;
+    justify-content:center;
+    z-index:200;
+    padding:20px;
+  }
+  .delete-modal-box{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:22px;
+    max-width:340px;
+    width:100%;
+  }
+  .delete-modal-box h4{
+    font-family:'Fraunces',serif;
+    font-size:16px;
+    font-weight:600;
+    margin:0 0 8px;
+  }
+  .delete-modal-box p{
+    font-size:12.5px;
+    color:var(--text-muted);
+    margin:0 0 16px;
+    line-height:1.5;
+  }
+  .delete-modal-box button{
+    display:block;
+    width:100%;
+    margin-bottom:8px;
+    font-size:13px;
+  }
+  .btn-secondary{
+    background:var(--warn-dim);
+    color:var(--warn);
+    border:1px solid var(--warn);
+    border-radius:7px;
+    padding:9px 12px;
+    font-weight:600;
+    cursor:pointer;
+    font-family:'Inter',sans-serif;
+  }
+  .btn-secondary:hover{filter:brightness(1.15);}
+  .btn-ghost{
+    background:none;
+    border:1px solid var(--border);
+    color:var(--text-muted);
+    border-radius:7px;
+    padding:9px 12px;
+    cursor:pointer;
+    font-family:'Inter',sans-serif;
+    margin-bottom:0 !important;
+  }
+  .btn-ghost:hover{color:var(--text);border-color:var(--text-muted);}
+</style>
+</head>
+<body>
+
+<div class="wrap" id="appWrap">
+  <header class="top">
+    <div class="brand">
+      <svg class="brand-mark" width="26" height="17" viewBox="0 0 200 130" xmlns="http://www.w3.org/2000/svg">
+        <polygon points="20,20 100,110 180,20 155,20 100,80 45,20" fill="var(--accent)"/>
+        <polygon points="100,27 104.1,39.3 117.1,39.4 106.7,47.2 110.6,59.6 100,52 89.4,59.6 93.3,47.2 82.9,39.4 95.9,39.3" fill="var(--bg)"/>
+      </svg>
+      Agenda Pessoal<span>.</span>
+    </div>
+    <div class="top-actions">
+      <button class="icon-btn" id="btnExport">Exportar JSON</button>
+      <button class="icon-btn" id="btnImport">Importar JSON</button>
+      <input type="file" id="fileImport" accept="application/json" style="display:none;">
+    </div>
+  </header>
+
+  <div class="grid">
+    <div class="panel">
+      <div class="cal-head">
+        <div class="cal-month" id="calMonth">—</div>
+        <div class="cal-nav">
+          <button class="nav-btn" id="prevMonth">‹</button>
+          <button class="nav-btn" id="todayBtn" title="Ir para hoje">•</button>
+          <button class="nav-btn" id="nextMonth">›</button>
+        </div>
+      </div>
+      <div class="weekdays">
+        <div>dom</div><div>seg</div><div>ter</div><div>qua</div><div>qui</div><div>sex</div><div>sáb</div>
+      </div>
+      <div class="days" id="daysGrid"></div>
+    </div>
+
+    <div class="panel">
+      <h3 class="day-panel-title" id="dayPanelTitle">Selecione um dia</h3>
+
+      <div class="add-form" id="addForm" style="display:none;">
+        <input type="text" id="fTitulo" placeholder="Título">
+        <div class="row2">
+          <input type="time" id="fHorario">
+          <select id="fTipoSelectHidden" style="display:none;"></select>
+        </div>
+        <div class="type-pick" id="typePick">
+          <button data-type="compromisso" class="active">Compromisso</button>
+          <button data-type="lembrete">Lembrete</button>
+          <button data-type="tarefa">Tarefa</button>
+        </div>
+        <textarea id="fDesc" placeholder="Descrição (opcional)"></textarea>
+        <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--text-muted);cursor:pointer;">
+          <input type="checkbox" id="fRecorrente" style="width:auto;margin:0;">
+          Repetir todo mês (mesmo dia)
+        </label>
+        <button class="btn-primary" id="btnAdd">Adicionar</button>
+      </div>
+
+      <div class="item-list" id="dayItems">
+        <div class="empty">Clique num dia no calendário para ver ou adicionar itens.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:20px;">
+    <h3 class="day-panel-title" style="margin-bottom:14px;">Próximos</h3>
+    <div class="upcoming-list" id="upcomingList"></div>
+  </div>
+
+  <footer class="hint">agenda pessoal — dados salvos no supabase</footer>
+</div>
+
+<div id="toast"></div>
+
+<div id="deleteModal">
+  <div class="delete-modal-box">
+    <h4>Excluir agendamento recorrente</h4>
+    <p>Esse item se repete todo mês. O que deseja excluir?</p>
+    <button class="btn-primary" id="btnDeleteOne">Excluir somente este agendamento</button>
+    <button class="btn-secondary" id="btnDeleteAll">Excluir todos (deste mês em diante)</button>
+    <button class="btn-ghost" id="btnDeleteCancel">Cancelar</button>
+  </div>
+</div>
+
+<script>
+// ====== CAPTURA DE ERROS (mostra na própria tela, sem precisar abrir o Console) ======
+window.onerror = function(msg, url, line, col, error){
+  try{
+    let banner = document.getElementById('jsErrorBanner');
+    if(!banner){
+      banner = document.createElement('div');
+      banner.id = 'jsErrorBanner';
+      banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#e2685f;color:#fff;padding:12px 16px;font-family:monospace;font-size:12.5px;z-index:99999;white-space:pre-wrap;line-height:1.5;';
+      document.body.prepend(banner);
+    }
+    banner.textContent = 'Erro no app (linha ' + line + '): ' + msg;
+  }catch(e){}
+  return false;
+};
+window.addEventListener('unhandledrejection', function(ev){
+  window.onerror('Erro de promise: ' + (ev.reason && ev.reason.message ? ev.reason.message : ev.reason), '', 0);
+});
+
+// ====== ESTADO ======
+let items = [];
+let viewDate = new Date();
+let selectedDate = null;
+
+const MESES = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
+
+function pad(n){return n.toString().padStart(2,'0');}
+function toKey(d){return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;}
+function fromKey(k){const [y,m,d]=k.split('-').map(Number);return new Date(y,m-1,d);}
+function todayKey(){return toKey(new Date());}
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2200);
+}
+
+function uuid(){
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c=>{
+    const r = Math.random()*16|0, v = c==='x'?r:(r&0x3|0x8);
+    return v.toString(16);
+  });
+}
+
+// ====== CONFIGURAÇÃO SUPABASE ======
+// Preencha com os dados do seu projeto (Project Settings > API no Supabase).
+const SUPABASE_URL = "https://mkwjqxqtrcdicieggkuv.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rd2pxeHF0cmNkaWNpZWdna3V2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcwNzQ4MDIsImV4cCI6MjEwMjY1MDgwMn0.UMxsYPfZMpXsw3RaHlnOcGNI89gDQPDQlGzTiaoTl_8";
+
+// Se o script do Supabase não carregar (sem internet, bloqueio de rede, etc.),
+// isso é tratado aqui em vez de travar o resto do app silenciosamente.
+let sb = null;
+let supabaseErro = null;
+try{
+  if(!window.supabase) throw new Error('Script do Supabase não carregou (verifique sua conexão com a internet).');
+  sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+}catch(e){
+  supabaseErro = e.message;
+  console.error('Erro ao iniciar Supabase:', e);
+}
+
+/*
+  ====== SQL para criar a tabela no Supabase (rodar uma vez no SQL Editor) ======
+  create table agenda_items (
+    id uuid default gen_random_uuid() primary key,
+    data date not null,
+    horario time,
+    titulo text not null,
+    descricao text,
+    tipo text not null default 'compromisso',
+    status text not null default 'pendente',
+    recorrente_id uuid,
+    created_at timestamptz default now()
+  );
+
+  alter table agenda_items enable row level security;
+
+  create policy "allow all - uso pessoal"
+  on agenda_items for all
+  using (true)
+  with check (true);
+*/
+
+// ====== I/O (Supabase) ======
+async function loadItems(){
+  if(supabaseErro){ showToast('Erro: '+supabaseErro); return; }
+  const {data, error} = await sb.from('agenda_items').select('*')
+    .order('data', {ascending:true}).order('horario', {ascending:true});
+  if(error){ showToast('Erro ao carregar: '+error.message); console.error(error); return; }
+  items = data || [];
+  renderAll();
+}
+
+// Gera as datas do mesmo dia do mês, para os próximos `mesesAdiante` meses.
+// Pula meses em que o dia não existe (ex: dia 31 em fevereiro).
+function gerarDatasRecorrentes(dataBaseKey, mesesAdiante){
+  const base = fromKey(dataBaseKey);
+  const dia = base.getDate();
+  const datas = [];
+  for(let i=1; i<=mesesAdiante; i++){
+    const d = new Date(base.getFullYear(), base.getMonth()+i, dia);
+    if(d.getDate() === dia){ // só inclui se o mês tem esse dia
+      datas.push(toKey(d));
+    }
+  }
+  return datas;
+}
+
+async function addItem(item){
+  if(supabaseErro){ showToast('Erro: '+supabaseErro); return; }
+  const recorrente = !!item.recorrente;
+  delete item.recorrente;
+  const grupoId = recorrente ? uuid() : null;
+
+  const linhas = [{...item, recorrente_id: grupoId}];
+
+  if(recorrente){
+    const datasFuturas = gerarDatasRecorrentes(item.data, 24); // repete pelos próximos 24 meses
+    datasFuturas.forEach(dataFutura=>{
+      linhas.push({...item, data: dataFutura, status: 'pendente', recorrente_id: grupoId});
+    });
+  }
+
+  const {data, error} = await sb.from('agenda_items').insert(linhas).select();
+  if(error){ showToast('Erro ao salvar: '+error.message); console.error(error); return; }
+  items = items.concat(data);
+  renderAll();
+  showToast(recorrente ? 'Item adicionado e repetido nos próximos meses' : 'Item adicionado');
+}
+
+async function toggleStatus(id, current){
+  if(supabaseErro){ showToast('Erro: '+supabaseErro); return; }
+  const novo = current === 'concluido' ? 'pendente' : 'concluido';
+  const {error} = await sb.from('agenda_items').update({status:novo}).eq('id', id);
+  if(error){ showToast('Erro: '+error.message); return; }
+  const it = items.find(i=>i.id===id);
+  if(it) it.status = novo;
+  renderAll();
+}
+
+async function deleteItem(id){
+  if(supabaseErro){ showToast('Erro: '+supabaseErro); return; }
+  const {error} = await sb.from('agenda_items').delete().eq('id', id);
+  if(error){ showToast('Erro ao excluir: '+error.message); return; }
+  items = items.filter(i=>i.id!==id);
+  renderAll();
+  showToast('Item removido');
+}
+
+// Exclui todas as ocorrências da mesma série recorrente a partir da data informada
+// (inclusive), mantendo intactas as ocorrências de meses anteriores.
+async function deleteRecurrenceForward(recorrenteId, fromDataKey){
+  if(supabaseErro){ showToast('Erro: '+supabaseErro); return; }
+  const {error} = await sb.from('agenda_items').delete()
+    .eq('recorrente_id', recorrenteId).gte('data', fromDataKey);
+  if(error){ showToast('Erro ao excluir: '+error.message); return; }
+  items = items.filter(i => !(i.recorrente_id === recorrenteId && i.data >= fromDataKey));
+  renderAll();
+  showToast('Agendamentos removidos deste mês em diante');
+}
+
+// ====== RENDER CALENDÁRIO ======
+function renderCalendar(){
+  const y = viewDate.getFullYear();
+  const m = viewDate.getMonth();
+  document.getElementById('calMonth').textContent = `${MESES[m]} de ${y}`;
+
+  const grid = document.getElementById('daysGrid');
+  grid.innerHTML = '';
+
+  const firstOfMonth = new Date(y, m, 1);
+  const startOffset = firstOfMonth.getDay(); // 0 = domingo
+  const startDate = new Date(y, m, 1 - startOffset);
+
+  const itemsByDay = {};
+  items.forEach(it=>{
+    (itemsByDay[it.data] = itemsByDay[it.data] || []).push(it);
+  });
+
+  for(let i=0;i<42;i++){
+    const d = new Date(startDate);
+    d.setDate(startDate.getDate()+i);
+    const key = toKey(d);
+    const cell = document.createElement('div');
+    cell.className = 'day';
+    if(d.getMonth() !== m) cell.classList.add('out');
+    if(key === todayKey()) cell.classList.add('today');
+    if(key === selectedDate) cell.classList.add('selected');
+
+    const num = document.createElement('div');
+    num.className = 'day-num';
+    num.textContent = d.getDate();
+    cell.appendChild(num);
+
+    const dots = document.createElement('div');
+    dots.className = 'day-dots';
+    const dayItems = itemsByDay[key] || [];
+    const seen = new Set();
+    dayItems.forEach(it=>{
+      if(!seen.has(it.tipo)){
+        seen.add(it.tipo);
+        const dot = document.createElement('div');
+        dot.className = 'dot ' + it.tipo;
+        dots.appendChild(dot);
+      }
+    });
+    cell.appendChild(dots);
+
+    cell.addEventListener('click', ()=>selectDay(key));
+    grid.appendChild(cell);
+
+    // stop after completing full weeks that cover the month
+    if(i >= 34 && d.getMonth() !== m && (i+1)%7===0) break;
+  }
+}
+
+// ====== PAINEL DO DIA ======
+function selectDay(key){
+  selectedDate = key;
+  renderCalendar();
+  renderDayPanel();
+}
+
+function renderDayPanel(){
+  const title = document.getElementById('dayPanelTitle');
+  const form = document.getElementById('addForm');
+  const list = document.getElementById('dayItems');
+
+  if(!selectedDate){
+    title.textContent = 'Selecione um dia';
+    form.style.display = 'none';
+    list.innerHTML = '<div class="empty">Clique num dia no calendário para ver ou adicionar itens.</div>';
+    return;
+  }
+
+  const d = fromKey(selectedDate);
+  title.textContent = d.toLocaleDateString('pt-BR', {weekday:'long', day:'numeric', month:'long'});
+  form.style.display = 'flex';
+
+  const dayItems = items.filter(i=>i.data===selectedDate)
+    .sort((a,b)=> (a.horario||'99:99').localeCompare(b.horario||'99:99'));
+
+  if(dayItems.length===0){
+    list.innerHTML = '<div class="empty">Nenhum item nesse dia ainda.</div>';
+    return;
+  }
+
+  list.innerHTML = '';
+  dayItems.forEach(it=>{
+    const row = document.createElement('div');
+    row.className = 'item ' + it.tipo + (it.status==='concluido' ? ' done' : '');
+
+    const check = document.createElement('div');
+    check.className = 'item-check';
+    check.textContent = it.status==='concluido' ? '✓' : '';
+    check.addEventListener('click', ()=>toggleStatus(it.id, it.status));
+
+    const body = document.createElement('div');
+    body.className = 'item-body';
+    body.innerHTML = `
+      <div class="item-title">${escapeHtml(it.titulo)}</div>
+      ${it.horario ? `<div class="item-time">${it.horario.slice(0,5)}</div>` : ''}
+      ${it.descricao ? `<div class="item-desc">${escapeHtml(it.descricao)}</div>` : ''}
+    `;
+
+    const del = document.createElement('button');
+    del.className = 'item-del';
+    del.textContent = '×';
+    del.addEventListener('click', ()=>{
+      openDeleteModal(it);
+    });
+
+    row.appendChild(check);
+    row.appendChild(body);
+    row.appendChild(del);
+    list.appendChild(row);
+  });
+}
+
+// Abre a confirmação de exclusão. Se o item fizer parte de uma série recorrente,
+// mostra as duas opções; senão, confirma exclusão simples.
+function openDeleteModal(it){
+  if(!it.recorrente_id){
+    if(confirm('Excluir este item?')) deleteItem(it.id);
+    return;
+  }
+  const modal = document.getElementById('deleteModal');
+  modal.style.display = 'flex';
+
+  const btnOne = document.getElementById('btnDeleteOne');
+  const btnAll = document.getElementById('btnDeleteAll');
+  const btnCancel = document.getElementById('btnDeleteCancel');
+
+  function close(){
+    modal.style.display = 'none';
+    btnOne.removeEventListener('click', onOne);
+    btnAll.removeEventListener('click', onAll);
+    btnCancel.removeEventListener('click', close);
+  }
+  function onOne(){ deleteItem(it.id); close(); }
+  function onAll(){ deleteRecurrenceForward(it.recorrente_id, it.data); close(); }
+
+  btnOne.addEventListener('click', onOne);
+  btnAll.addEventListener('click', onAll);
+  btnCancel.addEventListener('click', close);
+}
+
+function escapeHtml(s){
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// ====== FORM DE ADIÇÃO ======
+let currentType = 'compromisso';
+document.getElementById('typePick').addEventListener('click', (e)=>{
+  const btn = e.target.closest('button');
+  if(!btn) return;
+  currentType = btn.dataset.type;
+  document.querySelectorAll('#typePick button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+});
+
+document.getElementById('btnAdd').addEventListener('click', ()=>{
+  const titulo = document.getElementById('fTitulo').value.trim();
+  if(!titulo){ showToast('Digite um título'); return; }
+  if(!selectedDate){ showToast('Selecione um dia primeiro'); return; }
+  const horario = document.getElementById('fHorario').value || null;
+  const descricao = document.getElementById('fDesc').value.trim() || null;
+  const recorrente = document.getElementById('fRecorrente').checked;
+
+  addItem({
+    data: selectedDate,
+    horario,
+    titulo,
+    descricao,
+    tipo: currentType,
+    status: 'pendente',
+    recorrente
+  });
+
+  document.getElementById('fTitulo').value = '';
+  document.getElementById('fHorario').value = '';
+  document.getElementById('fDesc').value = '';
+  document.getElementById('fRecorrente').checked = false;
+});
+
+// ====== PRÓXIMOS ======
+function renderUpcoming(){
+  const list = document.getElementById('upcomingList');
+  const today = todayKey();
+  const upcoming = items
+    .filter(i=> i.data >= today && i.status !== 'concluido')
+    .sort((a,b)=> (a.data+ (a.horario||'99:99')).localeCompare(b.data+(b.horario||'99:99')))
+    .slice(0, 20);
+
+  if(upcoming.length===0){
+    list.innerHTML = '<div class="empty">Nada agendado pela frente.</div>';
+    return;
+  }
+
+  list.innerHTML = '';
+  upcoming.forEach(it=>{
+    const d = fromKey(it.data);
+    const row = document.createElement('div');
+    row.className = 'up-item ' + it.tipo;
+    row.innerHTML = `
+      <div class="up-date"><span class="d">${pad(d.getDate())}</span>${MESES[d.getMonth()].slice(0,3)}</div>
+      <div class="up-body">
+        <div class="up-title">${escapeHtml(it.titulo)}</div>
+        <div class="up-meta">${it.horario ? it.horario.slice(0,5)+' · ' : ''}${d.toLocaleDateString('pt-BR',{weekday:'long'})}</div>
+      </div>
+    `;
+    row.addEventListener('click', ()=>selectDay(it.data));
+    list.appendChild(row);
+  });
+}
+
+function renderAll(){
+  renderCalendar();
+  renderDayPanel();
+  renderUpcoming();
+}
+
+// ====== NAVEGAÇÃO ======
+document.getElementById('prevMonth').addEventListener('click', ()=>{
+  viewDate.setMonth(viewDate.getMonth()-1);
+  renderCalendar();
+});
+document.getElementById('nextMonth').addEventListener('click', ()=>{
+  viewDate.setMonth(viewDate.getMonth()+1);
+  renderCalendar();
+});
+document.getElementById('todayBtn').addEventListener('click', ()=>{
+  viewDate = new Date();
+  selectDay(todayKey());
+});
+
+// ====== EXPORT / IMPORT JSON ======
+document.getElementById('btnExport').addEventListener('click', ()=>{
+  const blob = new Blob([JSON.stringify(items, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `agenda-backup-${todayKey()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Backup exportado');
+});
+
+document.getElementById('btnImport').addEventListener('click', ()=>{
+  document.getElementById('fileImport').click();
+});
+document.getElementById('fileImport').addEventListener('change', async (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  try{
+    const text = await file.text();
+    const parsed = JSON.parse(text);
+    if(!Array.isArray(parsed)) throw new Error('Formato inválido');
+    if(!confirm(`Importar ${parsed.length} itens? Eles serão adicionados ao que já existe.`)) return;
+    const toInsert = parsed.map(({id, created_at, ...rest})=>rest);
+    const {error} = await sb.from('agenda_items').insert(toInsert);
+    if(error) throw error;
+    showToast('Importação concluída');
+    loadItems();
+  }catch(err){
+    showToast('Erro ao importar: '+err.message);
+    console.error(err);
+  }
+  e.target.value = '';
+});
+
+// ====== INIT ======
+function initApp(){
+  loadItems();
+  selectDay(todayKey());
+}
+
+initApp();
+</script>
+</body>
+</html>
