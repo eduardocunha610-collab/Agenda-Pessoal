@@ -3,7 +3,7 @@ name: Lembrete Diário da Agenda
 on:
   schedule:
     # 12:00 UTC = 09:00 no horário de Brasília (UTC-3, sem horário de verão)
-    - cron: '0 12 * * *'
+    - cron: '17 12 * * *'
   workflow_dispatch: {} # permite rodar manualmente pela aba Actions, pra testar
 
 jobs:
